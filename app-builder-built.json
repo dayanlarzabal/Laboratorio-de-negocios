@@ -1,0 +1,38 @@
+{
+  "url": "http://127.0.0.1:8081/",
+  "viewports": {
+    "desktop": {
+      "width": 1280,
+      "height": 800,
+      "status": 200,
+      "title": "Laboratorio de negocios",
+      "hasCanvas": false,
+      "bodyTextLen": 1477,
+      "bodyTextHash": "62f55067e4abee72878e11a950ba7b2a81070716d52e03274e5fe5ca8a885ad4",
+      "bodyTextPrefix": "CAMINO A LA LIBERTAD Laboratorio de negocios Experimenta con pre",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built.png"
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844,
+      "status": 200,
+      "title": "Laboratorio de negocios",
+      "hasCanvas": false,
+      "bodyTextLen": 1477,
+      "bodyTextHash": "62f55067e4abee72878e11a950ba7b2a81070716d52e03274e5fe5ca8a885ad4",
+      "bodyTextPrefix": "CAMINO A LA LIBERTAD Laboratorio de negocios Experimenta con pre",
+      "horizontalOverflow": false,
+      "consoleErrors": [],
+      "pageErrors": [],
+      "screenshot": "/workspace/screenshots/app-builder-built-mobile.png"
+    }
+  },
+  "brandWarnings": [],
+  "authWarnings": [],
+  "verdictFile": "/workspace/screenshots/app-builder-built.json",
+  "divergesFromBaseline": false,
+  "baselineReasons": []
+}
