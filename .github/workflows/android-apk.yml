@@ -11,26 +11,41 @@ jobs:
       - name: Descargar repositorio
         uses: actions/checkout@v4
 
-      - name: Preparar Java
+      - name: Configurar Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
-      - name: Preparar Node
+      - name: Configurar Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
+
+      - name: Instalar herramientas
+        run: sudo apt-get update && sudo apt-get install -y unzip
 
       - name: Preparar proyecto
         run: |
-          sudo apt-get update
-          sudo apt-get install -y unzip
-          unzip -o grok-workspace-android-independiente.zip -d proyecto
-          ls -la proyecto
+          ZIP=$(find . -maxdepth 1 -iname '*.zip' -print -quit)
+          if [ -z "$ZIP" ]; then
+            echo "No se encontró el ZIP"
+            ls -la
+            exit 1
+          fi
+          mkdir proyecto
+          unzip -q "$ZIP" -d proyecto
+          SCRIPT=$(find proyecto -name proyecto.sh -print -quit)
+          if [ -z "$SCRIPT" ]; then
+            echo "No se encontró proyecto.sh"
+            exit 1
+          fi
+          cd "$(dirname "$SCRIPT")"
+          bash proyecto.sh
 
-      - name: Compilar
-        run: |
-          cd proyecto
-          chmod +x proyecto.sh
-          ./proyecto.sh
+      - name: Guardar APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Android
+          path: proyecto/**/artifacts/*.apk
+          if-no-files-found: error
