@@ -624,21 +624,66 @@
     return `En ${per} pierdes <strong>${formatMoney(need, cur)}</strong>. Sube precio, baja costo o aumenta unidades para volver positivo.`;
   }
 
-  /** Toque fiable en WebView Android (evita clicks fantasma / táctil muerto). */
+  /**
+   * Tap fiable SIN romper el scroll del WebView.
+   * Solo cuenta como tap si el dedo casi no se movió.
+   */
   function bindTap(node, handler) {
-    let lastTouch = 0;
+    const MOVE_MAX = 14;
+    let startX = 0;
+    let startY = 0;
+    let moved = false;
+    let tracking = false;
+    let lastTap = 0;
+
+    node.addEventListener(
+      "touchstart",
+      (e) => {
+        const t = e.changedTouches[0];
+        startX = t.clientX;
+        startY = t.clientY;
+        moved = false;
+        tracking = true;
+      },
+      { passive: true }
+    );
+
+    node.addEventListener(
+      "touchmove",
+      (e) => {
+        if (!tracking) return;
+        const t = e.changedTouches[0];
+        if (
+          Math.abs(t.clientX - startX) > MOVE_MAX ||
+          Math.abs(t.clientY - startY) > MOVE_MAX
+        ) {
+          moved = true;
+        }
+      },
+      { passive: true }
+    );
+
     node.addEventListener(
       "touchend",
       (e) => {
-        lastTouch = Date.now();
-        if (e.cancelable) e.preventDefault();
+        if (!tracking) return;
+        tracking = false;
+        if (moved) return; // gesto de scroll → no es tap
+        lastTap = Date.now();
+        // NUNCA preventDefault aquí: bloqueaba el scroll de la página
         handler(e);
       },
-      { passive: false }
+      { passive: true }
     );
+
+    node.addEventListener("touchcancel", () => {
+      tracking = false;
+      moved = true;
+    });
+
     node.addEventListener("click", (e) => {
-      // Ignora el click sintético justo después de un touchend
-      if (Date.now() - lastTouch < 450) return;
+      // Evita doble acción si ya hubo touchend
+      if (Date.now() - lastTap < 400) return;
       handler(e);
     });
   }
