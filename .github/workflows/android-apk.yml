@@ -6,6 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Descargar repositorio
@@ -15,37 +16,31 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "17"
 
       - name: Configurar Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
 
-      - name: Instalar herramientas
-        run: sudo apt-get update && sudo apt-get install -y unzip
+      - name: Configurar Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Preparar proyecto
+      - name: Aceptar licencias Android
+        run: yes | sdkmanager --licenses >/dev/null || true
+
+      - name: Instalar paquetes Android
         run: |
-          ZIP=$(find . -maxdepth 1 -iname '*.zip' -print -quit)
-          if [ -z "$ZIP" ]; then
-            echo "No se encontró el ZIP"
-            ls -la
-            exit 1
-          fi
-          mkdir proyecto
-          unzip -q "$ZIP" -d proyecto
-          SCRIPT=$(find proyecto -name proyecto.sh -print -quit)
-          if [ -z "$SCRIPT" ]; then
-            echo "No se encontró proyecto.sh"
-            exit 1
-          fi
-          cd "$(dirname "$SCRIPT")"
-          bash proyecto.sh
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Compilar APK
+        run: bash proyecto.sh apk
 
       - name: Guardar APK
         uses: actions/upload-artifact@v4
         with:
           name: APK-Android
-          path: proyecto/**/artifacts/*.apk
+          path: artifacts/*.apk
           if-no-files-found: error
+          retention-days: 30
+
