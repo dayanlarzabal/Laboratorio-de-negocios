@@ -25,6 +25,7 @@
 
 html {
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -34,6 +35,8 @@ body {
   background: radial-gradient(120% 80% at 50% -10%, #1a3d2c 0%, var(--bg) 55%);
   color: var(--fg);
   line-height: 1.45;
+  overflow-x: hidden;
+  overscroll-behavior-y: contain;
 }
 
 button,
@@ -59,11 +62,14 @@ input[type="text"] {
   padding: 0.75rem 0.9rem;
   outline: none;
   caret-color: var(--gold);
+  font-size: 16px; /* evita zoom automático en iOS/Android WebView */
 }
 
 input:focus {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px rgba(232, 197, 71, 0.15);
+  /* No desplazar la página al enfocar en WebView */
+  scroll-margin: 0;
 }
 
 .app {
@@ -341,6 +347,7 @@ input:focus {
 
 .product-body {
   display: none;
+  scroll-margin-top: 1rem;
   padding: 0 0.85rem 0.9rem;
   border-top: 1px solid var(--line);
 }

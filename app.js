@@ -435,12 +435,80 @@
     render();
   }
 
-  function updateProduct(id, patch) {
+  function updateProduct(id, patch, soft = false) {
     state.products = state.products.map((p) =>
       p.id === id ? { ...p, ...patch } : p
     );
     saveState();
+    if (soft) {
+      updateLiveNumbers();
+      return;
+    }
     render();
+  }
+
+  /** Actualiza cifras visibles sin reconstruir el DOM (evita saltos al escribir). */
+  function updateLiveNumbers() {
+    const cur = state.currency;
+    for (const p of state.products) {
+      const el = document.querySelector(`[data-aporte="${p.id}"]`);
+      if (!el) continue;
+      const contrib = productContribution(p, state.period);
+      el.textContent =
+        (contrib >= 0 ? "+" : "") + formatMoney(contrib, cur);
+      el.className =
+        "aporte " +
+        (!p.active ? "muted" : contrib >= 0 ? "gain" : "loss");
+    }
+    const t = totals(state.period);
+    const hero = document.querySelector("[data-hero-profit]");
+    if (hero) {
+      hero.textContent =
+        (t.profit >= 0 ? "+" : "") + formatMoney(t.profit, cur);
+      hero.className = "value " + (t.profit >= 0 ? "gain" : "loss");
+    }
+    const map = {
+      revenue: t.revenue,
+      cogs: t.cogs,
+      contribution: t.contribution,
+      other: t.other,
+      restock: t.cogs,
+      ticket: t.ticket,
+    };
+    for (const [k, v] of Object.entries(map)) {
+      const el = document.querySelector(`[data-metric="${k}"]`);
+      if (el) el.textContent = formatMoney(v, cur);
+    }
+    const insight = document.querySelector("[data-insight]");
+    if (insight) insight.innerHTML = insightText(t);
+    const periods = ["dia", "semanal", "quincenal", "mensual"];
+    const projected = {};
+    for (const p of periods) {
+      projected[p] = projectPeriod(state.period, p, t);
+    }
+    const maxAbs = Math.max(
+      1,
+      ...periods.map((p) => Math.abs(projected[p].profit))
+    );
+    for (const p of periods) {
+      const profit = projected[p].profit;
+      const pct = Math.min(100, (Math.abs(profit) / maxAbs) * 100);
+      const fill = document.querySelector(`[data-bar-fill="${p}"]`);
+      const amt = document.querySelector(`[data-bar-amt="${p}"]`);
+      if (fill) {
+        fill.style.width = pct + "%";
+        fill.className = "bar-fill" + (profit < 0 ? " neg" : "");
+      }
+      if (amt) {
+        amt.textContent =
+          (profit >= 0 ? "+" : "") + formatMoney(profit, cur);
+      }
+    }
+    const reg = document.querySelector("[data-register-label]");
+    if (reg) {
+      const monthly = projectPeriod(state.period, "mensual", t);
+      reg.textContent = `Registrar ${monthly.profit >= 0 ? "+" : ""}${formatMoney(monthly.profit, cur)}/mes`;
+    }
   }
 
   function addProduct(data) {
@@ -583,6 +651,17 @@
   }
 
   function render() {
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    const active = document.activeElement;
+    let restore = null;
+    if (active && active.getAttribute && active.getAttribute("data-focus-key")) {
+      restore = {
+        key: active.getAttribute("data-focus-key"),
+        start: active.selectionStart,
+        end: active.selectionEnd,
+      };
+    }
+
     const root = document.getElementById("app");
     root.innerHTML = "";
     const cur = state.currency;
@@ -706,8 +785,10 @@
         className: "product-head",
         type: "button",
         onClick: () => {
+          const y = window.scrollY;
           state.openId = open ? null : p.id;
           render();
+          requestAnimationFrame(() => window.scrollTo(0, y));
         },
       });
       head.appendChild(el("span", { className: "name" }, p.name));
@@ -716,7 +797,7 @@
       head.appendChild(
         el(
           "span",
-          { className: aporteClass },
+          { className: aporteClass, "data-aporte": p.id },
           (contrib >= 0 ? "+" : "") + formatMoney(contrib, cur)
         )
       );
@@ -730,11 +811,18 @@
 
       const body = el("div", { className: "product-body" });
       body.appendChild(
-        field("Nombre", el("input", {
-          type: "text",
-          value: p.name,
-          onInput: (e) => updateProduct(p.id, { name: e.target.value }),
-        }))
+        field(
+          "Nombre",
+          el("input", {
+            type: "text",
+            value: p.name,
+            "data-focus-key": p.id + "-name",
+            inputmode: "text",
+            autocomplete: "off",
+            onInput: (e) =>
+              updateProduct(p.id, { name: e.target.value }, true),
+          })
+        )
       );
       body.appendChild(
         field(
@@ -744,7 +832,10 @@
             min: "0",
             step: "1",
             value: String(p.units),
-            onInput: (e) => updateProduct(p.id, { units: n(e.target.value) }),
+            "data-focus-key": p.id + "-units",
+            inputmode: "decimal",
+            onInput: (e) =>
+              updateProduct(p.id, { units: n(e.target.value) }, true),
           })
         )
       );
@@ -757,7 +848,10 @@
             min: "0",
             step: "0.01",
             value: String(p.cost),
-            onInput: (e) => updateProduct(p.id, { cost: n(e.target.value) }),
+            "data-focus-key": p.id + "-cost",
+            inputmode: "decimal",
+            onInput: (e) =>
+              updateProduct(p.id, { cost: n(e.target.value) }, true),
           })
         )
       );
@@ -769,7 +863,10 @@
             min: "0",
             step: "0.01",
             value: String(p.price),
-            onInput: (e) => updateProduct(p.id, { price: n(e.target.value) }),
+            "data-focus-key": p.id + "-price",
+            inputmode: "decimal",
+            onInput: (e) =>
+              updateProduct(p.id, { price: n(e.target.value) }, true),
           })
         )
       );
@@ -785,9 +882,13 @@
               type: "button",
               onClick: (e) => {
                 e.stopPropagation();
-                updateProduct(p.id, {
-                  price: priceForMargin(n(p.cost), m),
-                });
+                const prod = state.products.find((x) => x.id === p.id);
+                const next = priceForMargin(n(prod ? prod.cost : p.cost), m);
+                updateProduct(p.id, { price: next }, true);
+                const inp = document.querySelector(
+                  `[data-focus-key="${p.id}-price"]`
+                );
+                if (inp) inp.value = String(next);
               },
             },
             `Margen ${Math.round(m * 100)}%`
@@ -894,15 +995,11 @@
         className: "catalog-search",
         placeholder: "Buscar producto…",
         value: state.catalogQuery || "",
+        "data-focus-key": "catalog-search",
+        autocomplete: "off",
         onInput: (e) => {
           state.catalogQuery = e.target.value;
           render();
-          const input = document.querySelector(".catalog-search");
-          if (input) {
-            input.focus();
-            const len = input.value.length;
-            input.setSelectionRange(len, len);
-          }
         },
       })
     );
@@ -978,10 +1075,12 @@
             min: "0",
             step: "0.01",
             value: String(state.other),
+            "data-focus-key": "other-expenses",
+            inputmode: "decimal",
             onInput: (e) => {
               state.other = n(e.target.value);
               saveState();
-              render();
+              updateLiveNumbers();
             },
           }),
           "Alquiler, transporte, datos, comisiones…"
@@ -1026,11 +1125,16 @@
     const res = el("div", { className: "card", id: "resultados" });
     res.appendChild(el("h2", null, "Resultados"));
     const hero = el("div", { className: "results-hero" });
-    hero.appendChild(el("div", { className: "label" }, `Ganancia · ${PERIOD_LABEL[state.period]}`));
+    hero.appendChild(
+      el("div", { className: "label" }, `Ganancia · ${PERIOD_LABEL[state.period]}`)
+    );
     hero.appendChild(
       el(
         "div",
-        { className: "value " + (t.profit >= 0 ? "gain" : "loss") },
+        {
+          className: "value " + (t.profit >= 0 ? "gain" : "loss"),
+          "data-hero-profit": "1",
+        },
         (t.profit >= 0 ? "+" : "") + formatMoney(t.profit, cur)
       )
     );
@@ -1038,23 +1142,29 @@
 
     const metrics = el("div", { className: "metrics" });
     const metricData = [
-      ["Ingresos", formatMoney(t.revenue, cur)],
-      ["Costo mercancía", formatMoney(t.cogs, cur)],
-      ["Aporte productos", formatMoney(t.contribution, cur)],
-      ["Otros gastos", formatMoney(t.other, cur)],
-      ["Efectivo reposición", formatMoney(t.cogs, cur)],
-      ["Ticket promedio", formatMoney(t.ticket, cur)],
+      ["Ingresos", "revenue", t.revenue],
+      ["Costo mercancía", "cogs", t.cogs],
+      ["Aporte productos", "contribution", t.contribution],
+      ["Otros gastos", "other", t.other],
+      ["Efectivo reposición", "restock", t.cogs],
+      ["Ticket promedio", "ticket", t.ticket],
     ];
-    for (const [k, v] of metricData) {
+    for (const [label, key, val] of metricData) {
       metrics.appendChild(
         el("div", { className: "metric" }, [
-          el("div", { className: "k" }, k),
-          el("div", { className: "v" }, v),
+          el("div", { className: "k" }, label),
+          el(
+            "div",
+            { className: "v", "data-metric": key },
+            formatMoney(val, cur)
+          ),
         ])
       );
     }
     res.appendChild(metrics);
-    res.appendChild(el("div", { className: "insight", html: insightText(t) }));
+    res.appendChild(
+      el("div", { className: "insight", "data-insight": "1", html: insightText(t) })
+    );
 
     // Comparison bars
     res.appendChild(el("h2", { style: "margin-top:1.1rem" }, "Comparar periodos"));
@@ -1069,13 +1179,14 @@
         el("div", {
           className: "bar-fill" + (profit < 0 ? " neg" : ""),
           style: `width:${pct}%`,
+          "data-bar-fill": p,
         })
       );
       row.appendChild(track);
       row.appendChild(
         el(
           "span",
-          { className: "amt" },
+          { className: "amt", "data-bar-amt": p },
           (profit >= 0 ? "+" : "") + formatMoney(profit, cur)
         )
       );
@@ -1083,6 +1194,7 @@
     }
     res.appendChild(bars);
 
+    const monthlyProfit = projectPeriod(state.period, "mensual", t).profit;
     res.appendChild(
       el(
         "button",
@@ -1090,9 +1202,10 @@
           className: "btn btn-primary",
           type: "button",
           style: "margin-top:1rem",
+          "data-register-label": "1",
           onClick: registerActivo,
         },
-        `Registrar ${t.profit >= 0 ? "+" : ""}${formatMoney(projectPeriod(state.period, "mensual", t).profit, cur)}/mes`
+        `Registrar ${monthlyProfit >= 0 ? "+" : ""}${formatMoney(monthlyProfit, cur)}/mes`
       )
     );
     root.appendChild(res);
@@ -1148,6 +1261,29 @@
         "Herramienta educativa. Los números son estimaciones: no incluyen impuestos, mermas ni cambios de demanda."
       )
     );
+
+    // Restaurar scroll y foco (evita que la pantalla “baje sola” al editar)
+    requestAnimationFrame(() => {
+      window.scrollTo(0, scrollY);
+      if (restore && restore.key) {
+        const elFocus = document.querySelector(
+          `[data-focus-key="${restore.key}"]`
+        );
+        if (elFocus) {
+          elFocus.focus({ preventScroll: true });
+          try {
+            if (
+              typeof restore.start === "number" &&
+              typeof restore.end === "number"
+            ) {
+              elFocus.setSelectionRange(restore.start, restore.end);
+            }
+          } catch (_) {
+            /* number inputs may not support selection */
+          }
+        }
+      }
+    });
   }
 
   function field(label, input, hint) {

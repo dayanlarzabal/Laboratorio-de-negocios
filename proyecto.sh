@@ -84,10 +84,24 @@ cmd_apk() {
   if [[ -f "$ROOT/manifest.webmanifest" ]]; then
     cp "$ROOT/manifest.webmanifest" www/
   fi
-  # config.xml: permitir todo local y orientación portrait
+  for f in icon.png icon-192.png icon-512.png icon-1024.png; do
+    [[ -f "$ROOT/$f" ]] && cp "$ROOT/$f" www/
+  done
+  if [[ ! -f www/icon.png ]]; then
+    fail "Falta icon.png en la raíz del proyecto"
+  fi
+  mkdir -p res/icon/android
+  cp www/icon.png res/icon/icon.png
+  # Densidades Android (el sistema escala el PNG maestro)
+  for dens in ldpi mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+    cp www/icon.png "res/icon/android/${dens}.png"
+  done
+  ok "Ícono NEGOCIOS aplicado"
+
+  # config.xml: app + iconos
   cat > config.xml <<EOF
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="${APP_ID}" version="1.0.0" xmlns="http://www.w3.org/ns/widgets"
+<widget id="${APP_ID}" version="1.0.2" xmlns="http://www.w3.org/ns/widgets"
   xmlns:cdv="http://cordova.apache.org/ns/1.0">
   <name>${APP_NAME}</name>
   <description>Simula productos, gastos y ganancias en CUP y USD.</description>
@@ -100,24 +114,22 @@ cmd_apk() {
   <preference name="AndroidInsecureFileModeEnabled" value="true" />
   <preference name="SplashMaintainAspectRatio" value="true" />
   <preference name="AutoHideSplashScreen" value="true" />
+  <preference name="StatusBarOverlaysWebView" value="false" />
+  <preference name="android-minSdkVersion" value="24" />
+  <preference name="android-targetSdkVersion" value="34" />
+  <icon src="res/icon/icon.png" />
   <platform name="android">
+    <icon density="ldpi" src="res/icon/android/ldpi.png" />
+    <icon density="mdpi" src="res/icon/android/mdpi.png" />
+    <icon density="hdpi" src="res/icon/android/hdpi.png" />
+    <icon density="xhdpi" src="res/icon/android/xhdpi.png" />
+    <icon density="xxhdpi" src="res/icon/android/xxhdpi.png" />
+    <icon density="xxxhdpi" src="res/icon/android/xxxhdpi.png" />
     <preference name="AndroidWindowSplashScreenAnimatedIcon" value="www/icon.png" />
+    <preference name="AndroidWindowSplashScreenBackground" value="#0c1f17" />
   </platform>
 </widget>
 EOF
-
-  # Icono mínimo (1x1 PNG) si no hay assets
-  if [[ ! -f www/icon.png ]]; then
-    python3 - <<'PY'
-import struct, zlib, pathlib
-def png(w,h,rgb=(12,31,23)):
-    def chunk(t,d):
-        return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
-    raw=b''.join(b'\x00'+bytes(rgb)*w for _ in range(h))
-    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
-pathlib.Path('www/icon.png').write_bytes(png(192,192))
-PY
-  fi
 
   info "Añadiendo plataforma Android…"
   cordova platform add android@13
