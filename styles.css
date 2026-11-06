@@ -498,10 +498,28 @@ input:focus {
 
 .catalog-panel {
   display: none;
+  margin-top: 0.85rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
 }
 
 .catalog-panel.open {
   display: block;
+}
+
+.catalog-search {
+  margin-bottom: 0.65rem;
+}
+
+.catalog-filters {
+  margin-bottom: 0.75rem;
+  max-height: 7.5rem;
+  overflow-y: auto;
+}
+
+.catalog-filters .chip {
+  font-size: 0.72rem;
+  padding: 0.35rem 0.6rem;
 }
 
 .catalog-group {
@@ -520,6 +538,10 @@ input:focus {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+}
+
+.catalog-item {
+  font-size: 0.75rem;
 }
 
 .rate-box {
@@ -598,4 +620,3 @@ input:focus {
     grid-column: 1 / -1;
   }
 }
-
