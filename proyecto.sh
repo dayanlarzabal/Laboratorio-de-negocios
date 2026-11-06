@@ -101,7 +101,7 @@ cmd_apk() {
   # config.xml: app + iconos
   cat > config.xml <<EOF
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="${APP_ID}" version="1.0.4" xmlns="http://www.w3.org/ns/widgets"
+<widget id="${APP_ID}" version="1.0.5" xmlns="http://www.w3.org/ns/widgets"
   xmlns:cdv="http://cordova.apache.org/ns/1.0">
   <name>${APP_NAME}</name>
   <description>Simula productos, gastos y ganancias en CUP y USD.</description>

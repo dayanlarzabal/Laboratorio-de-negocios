@@ -292,6 +292,7 @@
       ],
       activos: [],
       openId: null,
+      productsTab: "mine",
       catalogOpen: false,
       catalogQuery: "",
       catalogGroup: "Todos",
@@ -824,9 +825,11 @@
     ]);
     root.appendChild(controls);
 
-    // Products
-    const prodCard = el("div", { className: "card" });
+    // Products — pestañas: Mis productos | Catálogo | Ejemplos
+    const prodCard = el("div", { className: "card products-card" });
     const activeCount = state.products.filter((p) => p.active).length;
+    const tab = state.productsTab || "mine";
+
     prodCard.appendChild(
       el(
         "h2",
@@ -835,112 +838,169 @@
       )
     );
 
-    if (!state.products.length) {
-      prodCard.appendChild(
-        el("div", { className: "empty" }, "Aún no hay productos. Elige del catálogo o crea uno.")
+    // Tabs
+    const tabs = el("div", { className: "tabs" });
+    for (const [id, label] of [
+      ["mine", "Mis productos"],
+      ["catalog", "Catálogo"],
+      ["examples", "Ejemplos"],
+    ]) {
+      tabs.appendChild(
+        el(
+          "button",
+          {
+            className: "tab" + (tab === id ? " active" : ""),
+            type: "button",
+            onClick: () => {
+              state.productsTab = id;
+              if (id === "catalog") state.catalogOpen = true;
+              render();
+            },
+          },
+          label
+        )
       );
     }
+    prodCard.appendChild(tabs);
 
-    for (const p of state.products) {
-      const open = state.openId === p.id;
-      const contrib = productContribution(p, state.period);
-      const card = el("div", {
-        className: "product" + (open ? " open" : "") + (!p.active ? " paused" : ""),
-      });
-      const head = el("button", {
-        className: "product-head",
-        type: "button",
-        onClick: () => {
-          const y = window.scrollY;
-          state.openId = open ? null : p.id;
-          render();
-          requestAnimationFrame(() => window.scrollTo(0, y));
-        },
-      });
-      head.appendChild(el("span", { className: "name" }, p.name));
-      const aporteClass =
-        !p.active ? "aporte muted" : contrib >= 0 ? "aporte gain" : "aporte loss";
-      head.appendChild(
-        el(
-          "span",
-          { className: aporteClass, "data-aporte": p.id },
-          (contrib >= 0 ? "+" : "") + formatMoney(contrib, cur)
-        )
-      );
-      head.appendChild(
-        el(
-          "span",
-          { className: "chevron", html: "▼" }
-        )
-      );
-      card.appendChild(head);
+    const panel = el("div", { className: "tab-panel" });
 
-      const body = el("div", { className: "product-body" });
-      body.appendChild(
-        field(
-          "Nombre",
-          el("input", {
-            type: "text",
-            value: p.name,
-            "data-focus-key": p.id + "-name",
-            inputmode: "text",
-            autocomplete: "off",
-            onInput: (e) =>
-              updateProduct(p.id, { name: e.target.value }, true),
-          })
-        )
-      );
-      body.appendChild(
-        field(
-          `Unidades (${PERIOD_LABEL[state.period]})`,
-          el("input", {
-            type: "number",
-            min: "0",
-            step: "1",
-            value: String(p.units),
-            "data-focus-key": p.id + "-units",
-            inputmode: "decimal",
-            onInput: (e) =>
-              updateProduct(p.id, { units: n(e.target.value) }, true),
-          })
-        )
-      );
-      const grid = el("div", { className: "grid-2" });
-      grid.appendChild(
-        field(
-          "Costo / unidad",
-          el("input", {
-            type: "number",
-            min: "0",
-            step: "0.01",
-            value: String(p.cost),
-            "data-focus-key": p.id + "-cost",
-            inputmode: "decimal",
-            onInput: (e) =>
-              updateProduct(p.id, { cost: n(e.target.value) }, true),
-          })
-        )
-      );
-      grid.appendChild(
-        field(
-          "Precio de venta",
-          el("input", {
-            type: "number",
-            min: "0",
-            step: "0.01",
-            value: String(p.price),
-            "data-focus-key": p.id + "-price",
-            inputmode: "decimal",
-            onInput: (e) =>
-              updateProduct(p.id, { price: n(e.target.value) }, true),
-          })
-        )
-      );
-      body.appendChild(grid);
+    if (tab === "mine") {
+      if (!state.products.length) {
+        panel.appendChild(
+          el(
+            "div",
+            { className: "empty" },
+            "Aún no hay productos. Ve a Catálogo o Ejemplos para agregar."
+          )
+        );
+      }
 
-      const margins = el("div", { className: "margin-btns" });
-      for (const m of [0.3, 0.4, 0.5]) {
-        margins.appendChild(
+      // Lista de productos del usuario
+      const list = el("div", { className: "product-list" });
+      for (const p of state.products) {
+        const open = state.openId === p.id;
+        const contrib = productContribution(p, state.period);
+        const card = el("div", {
+          className:
+            "product" + (open ? " open" : "") + (!p.active ? " paused" : ""),
+        });
+        const head = el("button", {
+          className: "product-head",
+          type: "button",
+          onClick: () => {
+            const y = window.scrollY;
+            state.openId = open ? null : p.id;
+            render();
+            requestAnimationFrame(() => window.scrollTo(0, y));
+          },
+        });
+        head.appendChild(el("span", { className: "name" }, p.name));
+        const aporteClass = !p.active
+          ? "aporte muted"
+          : contrib >= 0
+            ? "aporte gain"
+            : "aporte loss";
+        head.appendChild(
+          el(
+            "span",
+            { className: aporteClass, "data-aporte": p.id },
+            (contrib >= 0 ? "+" : "") + formatMoney(contrib, cur)
+          )
+        );
+        head.appendChild(el("span", { className: "chevron", html: "▼" }));
+        card.appendChild(head);
+
+        const body = el("div", { className: "product-body" });
+        body.appendChild(
+          field(
+            "Nombre",
+            el("input", {
+              type: "text",
+              value: p.name,
+              "data-focus-key": p.id + "-name",
+              inputmode: "text",
+              autocomplete: "off",
+              onInput: (e) =>
+                updateProduct(p.id, { name: e.target.value }, true),
+            })
+          )
+        );
+        body.appendChild(
+          field(
+            `Unidades (${PERIOD_LABEL[state.period]})`,
+            el("input", {
+              type: "number",
+              min: "0",
+              step: "1",
+              value: String(p.units),
+              "data-focus-key": p.id + "-units",
+              inputmode: "decimal",
+              onInput: (e) =>
+                updateProduct(p.id, { units: n(e.target.value) }, true),
+            })
+          )
+        );
+        const grid = el("div", { className: "grid-2" });
+        grid.appendChild(
+          field(
+            "Costo / unidad",
+            el("input", {
+              type: "number",
+              min: "0",
+              step: "0.01",
+              value: String(p.cost),
+              "data-focus-key": p.id + "-cost",
+              inputmode: "decimal",
+              onInput: (e) =>
+                updateProduct(p.id, { cost: n(e.target.value) }, true),
+            })
+          )
+        );
+        grid.appendChild(
+          field(
+            "Precio de venta",
+            el("input", {
+              type: "number",
+              min: "0",
+              step: "0.01",
+              value: String(p.price),
+              "data-focus-key": p.id + "-price",
+              inputmode: "decimal",
+              onInput: (e) =>
+                updateProduct(p.id, { price: n(e.target.value) }, true),
+            })
+          )
+        );
+        body.appendChild(grid);
+
+        const margins = el("div", { className: "margin-btns" });
+        for (const m of [0.3, 0.4, 0.5]) {
+          margins.appendChild(
+            el(
+              "button",
+              {
+                className: "chip",
+                type: "button",
+                onClick: (e) => {
+                  e.stopPropagation();
+                  const prod = state.products.find((x) => x.id === p.id);
+                  const next = priceForMargin(n(prod ? prod.cost : p.cost), m);
+                  updateProduct(p.id, { price: next }, true);
+                  const inp = document.querySelector(
+                    `[data-focus-key="${p.id}-price"]`
+                  );
+                  if (inp) inp.value = String(next);
+                },
+              },
+              `Margen ${Math.round(m * 100)}%`
+            )
+          );
+        }
+        body.appendChild(margins);
+
+        const actions = el("div", { className: "mini-actions" });
+        actions.appendChild(
           el(
             "button",
             {
@@ -948,88 +1008,53 @@
               type: "button",
               onClick: (e) => {
                 e.stopPropagation();
-                const prod = state.products.find((x) => x.id === p.id);
-                const next = priceForMargin(n(prod ? prod.cost : p.cost), m);
-                updateProduct(p.id, { price: next }, true);
-                const inp = document.querySelector(
-                  `[data-focus-key="${p.id}-price"]`
-                );
-                if (inp) inp.value = String(next);
+                updateProduct(p.id, { active: !p.active });
               },
             },
-            `Margen ${Math.round(m * 100)}%`
+            p.active ? "Pausar" : "Incluir"
           )
         );
+        actions.appendChild(
+          el(
+            "button",
+            {
+              className: "chip",
+              type: "button",
+              onClick: (e) => {
+                e.stopPropagation();
+                duplicateProduct(p.id);
+              },
+            },
+            "Duplicar"
+          )
+        );
+        actions.appendChild(
+          el(
+            "button",
+            {
+              className: "chip",
+              type: "button",
+              onClick: (e) => {
+                e.stopPropagation();
+                removeProduct(p.id);
+              },
+            },
+            "Eliminar"
+          )
+        );
+        body.appendChild(actions);
+        card.appendChild(body);
+        list.appendChild(card);
       }
-      body.appendChild(margins);
+      panel.appendChild(list);
 
-      const actions = el("div", { className: "mini-actions" });
-      actions.appendChild(
-        el(
-          "button",
-          {
-            className: "chip",
-            type: "button",
-            onClick: (e) => {
-              e.stopPropagation();
-              updateProduct(p.id, { active: !p.active });
-            },
-          },
-          p.active ? "Pausar" : "Incluir"
-        )
-      );
-      actions.appendChild(
-        el(
-          "button",
-          {
-            className: "chip",
-            type: "button",
-            onClick: (e) => {
-              e.stopPropagation();
-              duplicateProduct(p.id);
-            },
-          },
-          "Duplicar"
-        )
-      );
-      actions.appendChild(
-        el(
-          "button",
-          {
-            className: "chip",
-            type: "button",
-            onClick: (e) => {
-              e.stopPropagation();
-              removeProduct(p.id);
-            },
-          },
-          "Eliminar"
-        )
-      );
-      body.appendChild(actions);
-      card.appendChild(body);
-      prodCard.appendChild(card);
-    }
-
-    prodCard.appendChild(
-      el("div", { className: "btn-row" }, [
+      panel.appendChild(
         el(
           "button",
           {
             className: "btn btn-secondary",
             type: "button",
-            onClick: () => {
-              state.catalogOpen = !state.catalogOpen;
-              render();
-            },
-          },
-          state.catalogOpen ? "Cerrar catálogo" : "Elegir productos"
-        ),
-        el(
-          "button",
-          {
-            className: "btn btn-ghost",
-            type: "button",
+            style: "margin-top:0.75rem",
             onClick: () =>
               addProduct({
                 name: "Nuevo producto",
@@ -1038,153 +1063,166 @@
                 price: state.currency === "USD" ? 2 : 100,
               }),
           },
-          "+ Manual"
-        ),
-      ])
-    );
-
-    // Catalog
-    const catalog = el("div", {
-      className: "catalog-panel" + (state.catalogOpen ? " open" : ""),
-    });
-    const totalCatalog = CATALOG.reduce((n, g) => n + g.items.length, 0);
-    catalog.appendChild(
-      el(
-        "p",
-        { className: "empty", style: "text-align:left;padding:0.5rem 0" },
-        `${totalCatalog} plantillas · ritmo diario, escaladas a tu periodo. Precios base en CUP.`
-      )
-    );
-    catalog.appendChild(
-      el("input", {
-        type: "text",
-        className: "catalog-search",
-        placeholder: "Buscar producto…",
-        value: state.catalogQuery || "",
-        "data-focus-key": "catalog-search",
-        autocomplete: "off",
-        onInput: (e) => {
-          state.catalogQuery = e.target.value;
-          render();
-        },
-      })
-    );
-    const groupFilters = el("div", { className: "chip-row catalog-filters" });
-    const groups = ["Todos", ...CATALOG.map((g) => g.group)];
-    for (const gName of groups) {
-      groupFilters.appendChild(
-        el(
-          "button",
-          {
-            className:
-              "chip" + ((state.catalogGroup || "Todos") === gName ? " active" : ""),
-            type: "button",
-            onClick: () => {
-              state.catalogGroup = gName;
-              render();
-            },
-          },
-          gName
+          "+ Agregar producto manual"
         )
       );
-    }
-    catalog.appendChild(groupFilters);
 
-    const q = (state.catalogQuery || "").trim().toLowerCase();
-    const activeGroup = state.catalogGroup || "Todos";
-    let shown = 0;
-    for (const g of CATALOG) {
-      if (activeGroup !== "Todos" && g.group !== activeGroup) continue;
-      const filtered = g.items.filter(
-        (item) => !q || item.name.toLowerCase().includes(q)
+      panel.appendChild(
+        el(
+          "div",
+          { style: "margin-top:1rem" },
+          field(
+            `Otros gastos (${PERIOD_LABEL[state.period]})`,
+            el("input", {
+              type: "number",
+              min: "0",
+              step: "0.01",
+              value: String(state.other),
+              "data-focus-key": "other-expenses",
+              inputmode: "decimal",
+              onInput: (e) => {
+                state.other = n(e.target.value);
+                saveState();
+                updateLiveNumbers();
+              },
+            }),
+            "Alquiler, transporte, datos, comisiones…"
+          )
+        )
       );
-      if (!filtered.length) continue;
-      shown += filtered.length;
-      const group = el("div", { className: "catalog-group" });
-      group.appendChild(el("h3", null, `${g.group} (${filtered.length})`));
-      const items = el("div", { className: "catalog-items" });
-      for (const item of filtered) {
-        const margin =
-          item.price > 0
-            ? Math.round(((item.price - item.cost) / item.price) * 100)
-            : 0;
-        items.appendChild(
+    } else if (tab === "catalog") {
+      const totalCatalog = CATALOG.reduce((n, g) => n + g.items.length, 0);
+      panel.appendChild(
+        el(
+          "p",
+          { className: "tab-hint" },
+          `${totalCatalog} plantillas por categoría · precios base en CUP · se escalan a tu periodo`
+        )
+      );
+      panel.appendChild(
+        el("input", {
+          type: "text",
+          className: "catalog-search",
+          placeholder: "Buscar en el catálogo…",
+          value: state.catalogQuery || "",
+          "data-focus-key": "catalog-search",
+          autocomplete: "off",
+          onInput: (e) => {
+            state.catalogQuery = e.target.value;
+            render();
+          },
+        })
+      );
+
+      const groupFilters = el("div", { className: "chip-row catalog-filters" });
+      const groups = ["Todos", ...CATALOG.map((g) => g.group)];
+      for (const gName of groups) {
+        groupFilters.appendChild(
           el(
             "button",
             {
-              className: "chip catalog-item",
+              className:
+                "chip" +
+                ((state.catalogGroup || "Todos") === gName ? " active" : ""),
               type: "button",
-              title: `Costo ${item.cost} · Venta ${item.price} · ~${item.units}/día`,
-              onClick: () => addFromCatalog(item),
+              onClick: () => {
+                state.catalogGroup = gName;
+                render();
+              },
             },
-            `${item.name} · ${margin}%`
+            gName
           )
         );
       }
-      group.appendChild(items);
-      catalog.appendChild(group);
-    }
-    if (!shown) {
-      catalog.appendChild(
-        el("div", { className: "empty" }, "Ningún producto coincide con la búsqueda.")
-      );
-    }
-    prodCard.appendChild(catalog);
+      panel.appendChild(groupFilters);
 
-    // Other expenses
-    prodCard.appendChild(
-      el("div", { style: "margin-top:1rem" },
-        field(
-          `Otros gastos (${PERIOD_LABEL[state.period]})`,
-          el("input", {
-            type: "number",
-            min: "0",
-            step: "0.01",
-            value: String(state.other),
-            "data-focus-key": "other-expenses",
-            inputmode: "decimal",
-            onInput: (e) => {
-              state.other = n(e.target.value);
-              saveState();
-              updateLiveNumbers();
-            },
-          }),
-          "Alquiler, transporte, datos, comisiones…"
-        )
-      )
-    );
-
-    // Presets
-    const presets = el("div", { className: "chip-row", style: "margin-top:0.85rem" });
-    presets.appendChild(
-      el(
-        "span",
-        { style: "font-size:0.75rem;color:var(--muted);width:100%" },
-        "Negocios de ejemplo (cargan varios productos):"
-      )
-    );
-    for (const [key, label] of [
-      ["cafeteria", "Cafetería"],
-      ["dulceria", "Dulcería"],
-      ["comida", "Comida rápida"],
-      ["ropa", "Ropa"],
-      ["belleza", "Belleza"],
-      ["mercado", "Mercado"],
-      ["tech", "Tecnología"],
-    ]) {
-      presets.appendChild(
+      const q = (state.catalogQuery || "").trim().toLowerCase();
+      const activeGroup = state.catalogGroup || "Todos";
+      let shown = 0;
+      for (const g of CATALOG) {
+        if (activeGroup !== "Todos" && g.group !== activeGroup) continue;
+        const filtered = g.items.filter(
+          (item) => !q || item.name.toLowerCase().includes(q)
+        );
+        if (!filtered.length) continue;
+        shown += filtered.length;
+        const group = el("div", { className: "catalog-group" });
+        group.appendChild(el("h3", null, `${g.group} (${filtered.length})`));
+        const items = el("div", { className: "catalog-items" });
+        for (const item of filtered) {
+          const margin =
+            item.price > 0
+              ? Math.round(((item.price - item.cost) / item.price) * 100)
+              : 0;
+          items.appendChild(
+            el(
+              "button",
+              {
+                className: "chip catalog-item",
+                type: "button",
+                title: `Costo ${item.cost} · Venta ${item.price} · ~${item.units}/día`,
+                onClick: () => {
+                  state.productsTab = "mine";
+                  addFromCatalog(item);
+                },
+              },
+              `${item.name} · ${margin}%`
+            )
+          );
+        }
+        group.appendChild(items);
+        panel.appendChild(group);
+      }
+      if (!shown) {
+        panel.appendChild(
+          el(
+            "div",
+            { className: "empty" },
+            "Ningún producto coincide con la búsqueda."
+          )
+        );
+      }
+    } else {
+      // examples
+      panel.appendChild(
         el(
-          "button",
-          {
-            className: "chip",
-            type: "button",
-            onClick: () => loadPreset(key),
-          },
-          label
+          "p",
+          { className: "tab-hint" },
+          "Carga un negocio de ejemplo con varios productos ya configurados."
         )
       );
+      const presets = el("div", { className: "preset-grid" });
+      for (const [key, label, desc] of [
+        ["cafeteria", "Cafetería", "Café, jugos y pan"],
+        ["dulceria", "Dulcería", "Dulces y postres"],
+        ["comida", "Comida rápida", "Platos y bebidas"],
+        ["ropa", "Ropa", "Prendas y accesorios"],
+        ["belleza", "Belleza", "Servicios y productos"],
+        ["mercado", "Mercado", "Abarrotes y fresco"],
+        ["tech", "Tecnología", "Accesorios y reparación"],
+      ]) {
+        presets.appendChild(
+          el(
+            "button",
+            {
+              className: "preset-card",
+              type: "button",
+              onClick: () => {
+                state.productsTab = "mine";
+                loadPreset(key);
+              },
+            },
+            [
+              el("span", { className: "preset-title" }, label),
+              el("span", { className: "preset-desc" }, desc),
+            ]
+          )
+        );
+      }
+      panel.appendChild(presets);
     }
-    prodCard.appendChild(presets);
+
+    prodCard.appendChild(panel);
     root.appendChild(prodCard);
 
     // Results
