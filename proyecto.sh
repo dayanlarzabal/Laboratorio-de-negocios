@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # =============================================================================
 #  Laboratorio de negocios — Camino a la Libertad
-#  proyecto.sh  ·  arranque, verificación y empaquetado local
+#  proyecto.sh
+#  - Sin argumentos (CI): genera APK Android con Cordova → artifacts/
+#  - start / check / zip: uso local
 # =============================================================================
 set -euo pipefail
 
@@ -10,6 +12,8 @@ cd "$ROOT"
 
 PORT="${PORT:-8080}"
 HOST="${HOST:-127.0.0.1}"
+APP_ID="${APP_ID:-com.caminoalalibertad.laboratorionegocios}"
+APP_NAME="${APP_NAME:-Laboratorio de negocios}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -39,55 +43,121 @@ check_files() {
   ok "Archivos del proyecto presentes"
 }
 
+# ─── Build APK (modo CI / por defecto) ───────────────────────────────────────
+cmd_apk() {
+  banner
+  check_files
+
+  info "Preparando build Android (Cordova)…"
+  command -v node >/dev/null 2>&1 || fail "Node.js es obligatorio"
+  command -v java >/dev/null 2>&1 || fail "Java es obligatorio"
+
+  # Android SDK (GitHub Actions suele traerlo vía setup-android o ANDROID_HOME)
+  if [[ -z "${ANDROID_HOME:-}${ANDROID_SDK_ROOT:-}" ]]; then
+    if [[ -d "$HOME/Android/Sdk" ]]; then
+      export ANDROID_HOME="$HOME/Android/Sdk"
+    elif [[ -d /usr/local/lib/android/sdk ]]; then
+      export ANDROID_HOME=/usr/local/lib/android/sdk
+    fi
+  fi
+  export ANDROID_SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+  if [[ -z "${ANDROID_SDK_ROOT}" ]]; then
+    fail "No hay Android SDK. En CI usa android-actions/setup-android."
+  fi
+  ok "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+
+  local work="$ROOT/.cordova-build"
+  rm -rf "$work"
+  mkdir -p "$work"
+  cd "$work"
+
+  info "Instalando Cordova…"
+  npm install -g cordova@12 >/dev/null
+
+  info "Creando proyecto Cordova…"
+  cordova create app "$APP_ID" "$APP_NAME"
+  cd app
+
+  # Contenido web
+  rm -rf www/*
+  cp "$ROOT/index.html" "$ROOT/app.js" "$ROOT/styles.css" www/
+  if [[ -f "$ROOT/manifest.webmanifest" ]]; then
+    cp "$ROOT/manifest.webmanifest" www/
+  fi
+  # config.xml: permitir todo local y orientación portrait
+  cat > config.xml <<EOF
+<?xml version='1.0' encoding='utf-8'?>
+<widget id="${APP_ID}" version="1.0.0" xmlns="http://www.w3.org/ns/widgets"
+  xmlns:cdv="http://cordova.apache.org/ns/1.0">
+  <name>${APP_NAME}</name>
+  <description>Simula productos, gastos y ganancias en CUP y USD.</description>
+  <author email="soporte@caminoalalibertad.app" href="https://github.com/dayanlarzabal/Laboratorio-de-negocios">Camino a la Libertad</author>
+  <content src="index.html" />
+  <access origin="*" />
+  <allow-intent href="http://*/*" />
+  <allow-intent href="https://*/*" />
+  <preference name="Orientation" value="portrait" />
+  <preference name="AndroidInsecureFileModeEnabled" value="true" />
+  <preference name="SplashMaintainAspectRatio" value="true" />
+  <preference name="AutoHideSplashScreen" value="true" />
+  <platform name="android">
+    <preference name="AndroidWindowSplashScreenAnimatedIcon" value="www/icon.png" />
+  </platform>
+</widget>
+EOF
+
+  # Icono mínimo (1x1 PNG) si no hay assets
+  if [[ ! -f www/icon.png ]]; then
+    python3 - <<'PY'
+import struct, zlib, pathlib
+def png(w,h,rgb=(12,31,23)):
+    def chunk(t,d):
+        return struct.pack('>I',len(d))+t+d+struct.pack('>I',zlib.crc32(t+d)&0xffffffff)
+    raw=b''.join(b'\x00'+bytes(rgb)*w for _ in range(h))
+    return b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>IIBBBBB',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(raw))+chunk(b'IEND',b'')
+pathlib.Path('www/icon.png').write_bytes(png(192,192))
+PY
+  fi
+
+  info "Añadiendo plataforma Android…"
+  cordova platform add android@13
+
+  info "Compilando APK (debug)…"
+  cordova build android --debug
+
+  local apk
+  apk="$(find platforms/android -name '*.apk' | head -n1 || true)"
+  [[ -n "$apk" && -f "$apk" ]] || fail "No se generó ningún APK"
+
+  mkdir -p "$ROOT/artifacts"
+  cp "$apk" "$ROOT/artifacts/laboratorio-negocios.apk"
+  ok "APK listo: artifacts/laboratorio-negocios.apk"
+  ls -la "$ROOT/artifacts/"
+}
+
 serve_python() {
   info "Servidor local en http://${HOST}:${PORT}"
-  info "Abre esa URL en el navegador (o instálala como app desde el menú del navegador)"
-  echo ""
   if command -v python3 >/dev/null 2>&1; then
     exec python3 -m http.server "$PORT" --bind "$HOST"
   elif command -v python >/dev/null 2>&1; then
     exec python -m http.server "$PORT" --bind "$HOST"
   else
-    fail "No hay Python disponible para servir archivos estáticos"
-  fi
-}
-
-serve_npx() {
-  if command -v npx >/dev/null 2>&1; then
-    info "Sirviendo con npx serve en http://${HOST}:${PORT}"
-    exec npx --yes serve -l "tcp://${HOST}:${PORT}" .
-  fi
-  serve_python
-}
-
-open_browser() {
-  local url="http://${HOST}:${PORT}/"
-  if command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "$url" >/dev/null 2>&1 || true
-  elif command -v open >/dev/null 2>&1; then
-    open "$url" >/dev/null 2>&1 || true
+    fail "No hay Python disponible"
   fi
 }
 
 cmd_start() {
   banner
   check_files
-  open_browser
-  serve_npx
+  serve_python
 }
 
 cmd_check() {
   banner
   check_files
-  if command -v node >/dev/null 2>&1; then
-    ok "Node $(node -v)"
-  else
-    warn "Node no instalado (opcional)"
-  fi
-  if command -v python3 >/dev/null 2>&1; then
-    ok "Python $(python3 --version 2>&1 | awk '{print $2}')"
-  fi
-  ok "Listo para: ./proyecto.sh start"
+  command -v node >/dev/null 2>&1 && ok "Node $(node -v)" || warn "Node no instalado"
+  command -v java >/dev/null 2>&1 && ok "Java ok" || warn "Java no instalado"
+  ok "Listo. CI: bash proyecto.sh   Local: bash proyecto.sh start"
 }
 
 cmd_zip() {
@@ -95,37 +165,29 @@ cmd_zip() {
   check_files
   local out="laboratorio-negocios.zip"
   rm -f "$out"
-  zip -q -r "$out" index.html app.js styles.css proyecto.sh manifest.webmanifest icons 2>/dev/null \
-    || zip -q -r "$out" index.html app.js styles.css proyecto.sh
-  ok "Paquete creado: $out"
-  info "Comparte el ZIP o súbelo a cualquier hosting estático"
+  zip -q -r "$out" index.html app.js styles.css proyecto.sh manifest.webmanifest
+  ok "Paquete: $out"
 }
 
 cmd_help() {
   banner
   cat <<EOF
-Uso: ./proyecto.sh <comando>
+Uso: bash proyecto.sh [comando]
 
 Comandos:
-  start     Arranca el servidor local (puerto ${PORT})
-  check     Verifica que el proyecto esté completo
-  zip       Empaqueta la app en laboratorio-negocios.zip
-  help      Muestra esta ayuda
-
-Variables:
-  PORT=8080   Puerto del servidor
-  HOST=127.0.0.1
-
-Ejemplos:
-  ./proyecto.sh start
-  PORT=3000 ./proyecto.sh start
-  ./proyecto.sh zip
+  (sin args)  Compila el APK → artifacts/laboratorio-negocios.apk
+  apk         Igual que sin argumentos
+  start       Servidor web local (puerto ${PORT})
+  check       Verifica archivos
+  zip         Empaqueta la app web en laboratorio-negocios.zip
+  help        Esta ayuda
 EOF
 }
 
 main() {
-  local cmd="${1:-start}"
+  local cmd="${1:-apk}"
   case "$cmd" in
+    apk|build)       cmd_apk ;;
     start|run|serve) cmd_start ;;
     check|verify)    cmd_check ;;
     zip|pack)        cmd_zip ;;
