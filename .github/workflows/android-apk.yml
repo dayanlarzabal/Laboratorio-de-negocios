@@ -20,18 +20,20 @@ jobs:
 
       - name: Configurar Node
         uses: actions/setup-node@v4
-        with:packages: platform-tools
+        with:
           node-version: "22"
 
       - name: Configurar Android SDK
         uses: android-actions/setup-android@v4
-packages: platform-tools
+        with:
+          packages: platform-tools
+
       - name: Aceptar licencias Android
         run: yes | sdkmanager --licenses >/dev/null || true
 
       - name: Instalar paquetes Android
         run: |
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          sdkmanager "platforms;android-34" "build-tools;34.0.0"
 
       - name: Compilar APK
         run: bash proyecto.sh apk
