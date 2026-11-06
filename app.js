@@ -624,13 +624,34 @@
     return `En ${per} pierdes <strong>${formatMoney(need, cur)}</strong>. Sube precio, baja costo o aumenta unidades para volver positivo.`;
   }
 
+  /** Toque fiable en WebView Android (evita clicks fantasma / táctil muerto). */
+  function bindTap(node, handler) {
+    let lastTouch = 0;
+    node.addEventListener(
+      "touchend",
+      (e) => {
+        lastTouch = Date.now();
+        if (e.cancelable) e.preventDefault();
+        handler(e);
+      },
+      { passive: false }
+    );
+    node.addEventListener("click", (e) => {
+      // Ignora el click sintético justo después de un touchend
+      if (Date.now() - lastTouch < 450) return;
+      handler(e);
+    });
+  }
+
   function el(tag, attrs, children) {
     const node = document.createElement(tag);
     if (attrs) {
       for (const [k, v] of Object.entries(attrs)) {
         if (k === "className") node.className = v;
         else if (k === "dataset") Object.assign(node.dataset, v);
-        else if (k.startsWith("on") && typeof v === "function") {
+        else if (k === "onClick" && typeof v === "function") {
+          bindTap(node, v);
+        } else if (k.startsWith("on") && typeof v === "function") {
           node.addEventListener(k.slice(2).toLowerCase(), v);
         } else if (k === "html") node.innerHTML = v;
         else if (v !== false && v != null) node.setAttribute(k, v === true ? "" : v);

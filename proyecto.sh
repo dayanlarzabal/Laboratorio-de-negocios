@@ -101,7 +101,7 @@ cmd_apk() {
   # config.xml: app + iconos
   cat > config.xml <<EOF
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="${APP_ID}" version="1.0.2" xmlns="http://www.w3.org/ns/widgets"
+<widget id="${APP_ID}" version="1.0.3" xmlns="http://www.w3.org/ns/widgets"
   xmlns:cdv="http://cordova.apache.org/ns/1.0">
   <name>${APP_NAME}</name>
   <description>Simula productos, gastos y ganancias en CUP y USD.</description>
@@ -115,8 +115,11 @@ cmd_apk() {
   <preference name="SplashMaintainAspectRatio" value="true" />
   <preference name="AutoHideSplashScreen" value="true" />
   <preference name="StatusBarOverlaysWebView" value="false" />
+  <preference name="DisallowOverscroll" value="true" />
+  <preference name="Fullscreen" value="false" />
   <preference name="android-minSdkVersion" value="24" />
   <preference name="android-targetSdkVersion" value="34" />
+  <preference name="AndroidLaunchMode" value="singleTop" />
   <icon src="res/icon/icon.png" />
   <platform name="android">
     <icon density="ldpi" src="res/icon/android/ldpi.png" />
