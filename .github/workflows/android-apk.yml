@@ -20,12 +20,12 @@ jobs:
 
       - name: Configurar Node
         uses: actions/setup-node@v4
-        with:
+        with:packages: platform-tools
           node-version: "22"
 
       - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
+        uses: android-actions/setup-android@v4
+packages: platform-tools
       - name: Aceptar licencias Android
         run: yes | sdkmanager --licenses >/dev/null || true
 
